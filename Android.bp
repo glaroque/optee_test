@@ -1,0 +1,152 @@
+// Generate certificate headers
+genrule {
+    name: "xtest_cert_headers",
+    srcs: [
+        "cert/ca.crt",
+        "cert/mid.crt", 
+        "cert/my.crt",
+        "cert/my.csr",
+    ],
+    out: [
+        "regression_8100_ca_crt.h",
+        "regression_8100_mid_crt.h",
+        "regression_8100_my_crt.h", 
+        "regression_8100_my_csr.h",
+    ],
+    cmd: "$(location :file_to_c_py) --inf $(location cert/ca.crt) --out $(location regression_8100_ca_crt.h) --name regression_8100_ca_crt && " +
+         "$(location :file_to_c_py) --inf $(location cert/mid.crt) --out $(location regression_8100_mid_crt.h) --name regression_8100_mid_crt && " +
+         "$(location :file_to_c_py) --inf $(location cert/my.crt) --out $(location regression_8100_my_crt.h) --name regression_8100_my_crt && " +
+         "$(location :file_to_c_py) --inf $(location cert/my.csr) --out $(location regression_8100_my_csr.h) --name regression_8100_my_csr",
+    tools: [":file_to_c_py"],
+}
+
+// Python script to convert files to C headers
+python_binary_host {
+    name: "file_to_c_py",
+    main: "scripts/file_to_c.py",
+    srcs: ["scripts/file_to_c.py"],
+    version: {
+        py3: {
+            embedded_launcher: true,
+        },
+    },
+}
+
+//###############################################################################
+// Build xtest                                                                  #
+//###############################################################################
+
+// Version with conditional features enabled
+cc_binary {
+    name: "xtest",
+    vendor: true,
+    shared_libs: [
+        "libteec",
+        "libckteec",
+    ],
+    cflags: [
+        "-DCFG_PKCS11_TA",
+        "-DCFG_GP_SOCKETS", 
+        "-DCFG_SECURE_PARTITION",
+        "-DCFG_SPMC_TESTS",
+        "-DCFG_SECURE_DATA_PATH",
+        "-pthread",
+        "-g3",
+        "-Wno-missing-field-initializers",
+        "-Wno-format-zero-length",
+        "-Wno-unused-parameter",
+        "-DTA_DIR=\"/vendor/lib/optee_armtz\""
+    ],
+
+    srcs: [
+        "host/xtest/regression_1000.c",
+        "host/xtest/regression_2000.c",
+        "host/xtest/sock_server.c",
+        "host/xtest/rand_stream.c",
+        "host/xtest/adbg/src/adbg_case.c",
+        "host/xtest/adbg/src/adbg_enum.c",
+        "host/xtest/adbg/src/adbg_expect.c",
+        "host/xtest/adbg/src/adbg_log.c",
+        "host/xtest/adbg/src/adbg_run.c",
+        "host/xtest/adbg/src/security_utils_hex.c",
+        "host/xtest/asym_perf.c",
+        "host/xtest/benchmark_1000.c",
+        "host/xtest/benchmark_2000.c",
+        "host/xtest/clear_storage.c",
+        "host/xtest/regression_4000.c",
+        "host/xtest/regression_4100.c",
+        "host/xtest/regression_5000.c",
+        "host/xtest/regression_6000.c",
+        "host/xtest/regression_8000.c",
+        "host/xtest/regression_8100.c",
+        "host/xtest/hash_perf.c",
+        "host/xtest/install_ta.c",
+        "host/xtest/stats.c",
+        "host/xtest/symm_cipher_perf.c",
+        "host/xtest/xtest_helpers.c",
+        "host/xtest/xtest_main.c",
+        "host/xtest/xtest_test.c",
+        "host/xtest/xtest_uuid_helpers.c",
+        "host/xtest/ffa_spmc_1000.c",
+        "host/xtest/sdp_basic.c",
+        "host/xtest/pkcs11_1000.c",
+    ],
+
+    generated_headers: ["xtest_cert_headers"],
+
+    local_include_dirs: [
+        "host/xtest",
+        "host/xtest/adbg/include",
+        "host/xtest/include/uapi",
+        "ta/include",
+        "ta/supp_plugin/include",
+        "ta/create_fail_test/include",
+        "ta/crypt/include",
+        "ta/enc_fs/include",
+        "ta/os_test/include",
+        "ta/rpc_test/include",
+        "ta/sims/include",
+        "ta/miss/include",
+        "ta/sims_keepalive/include",
+        "ta/storage_benchmark/include",
+        "ta/concurrent/include",
+        "ta/concurrent_large/include",
+        "ta/crypto_perf/include",
+        "ta/socket/include",
+        "ta/sdp_basic/include",
+        "ta/tpm_log_test/include",
+        "ta/large/include",
+        "ta/bti_test/include",
+        "ta/subkey1/include",
+        "ta/subkey2/include",
+        "host/supp_plugin/include",
+    ],
+    header_libs: ["optee_ta_headers"],
+}
+
+//###############################################################################
+// Build tee-supplicant test plugin                                             #
+//###############################################################################
+
+cc_library_shared {
+    name: "f07bfc66-958c-4a15-99c0-260e4e7375dd.plugin",
+    vendor: true,
+    relative_install_path: "tee-supplicant/plugins",
+    shared_libs: ["libteec"],
+    
+    srcs: ["host/supp_plugin/test_supp_plugin.c"],
+    
+    local_include_dirs: ["host/supp_plugin/include"],
+    
+    cflags: ["-Wno-unused-parameter"],
+    
+    compile_multilib: "both",
+    arch: {
+        arm: {
+            enabled: true,
+        },
+        arm64: {
+            enabled: true,
+        },
+    },
+}
